@@ -1,4 +1,4 @@
-name: Prepare temporary Java decompiler
+name: Fetch legacy Fabric mappings for source recovery
 
 on:
   push:
@@ -9,22 +9,25 @@ permissions:
   contents: read
 
 jobs:
-  prepare:
+  mappings:
     runs-on: ubuntu-latest
     steps:
-      - name: Download CFR decompiler
+      - name: Download Yarn and intermediary mappings
+        shell: bash
         run: |
           set -euo pipefail
           mkdir -p work
-          curl --fail --location --retry 3 --output work/cfr-0.152.jar https://github.com/leibnitz27/cfr/releases/download/0.152/cfr-0.152.jar
-          sha256sum work/cfr-0.152.jar | tee work/cfr.sha256
-          java -version
+          curl --fail --location --retry 3 --output work/yarn-1.20.1+build.10-v2.jar 'https://maven.fabricmc.net/net/fabricmc/yarn/1.20.1+build.10/yarn-1.20.1+build.10-v2.jar'
+          curl --fail --location --retry 3 --output work/intermediary-1.20.1.jar 'https://maven.fabricmc.net/net/fabricmc/intermediary/1.20.1/intermediary-1.20.1-v2.jar'
+          unzip -p work/yarn-1.20.1+build.10-v2.jar mappings/mappings.tiny > work/yarn.tiny
+          unzip -p work/intermediary-1.20.1.jar mappings/mappings.tiny > work/intermediary.tiny
+          head -n 3 work/yarn.tiny
+          head -n 3 work/intermediary.tiny
+          wc -l work/*.tiny
 
-      - name: Upload temporary decompiler tool
+      - name: Upload mappings
         uses: actions/upload-artifact@v4
         with:
-          name: temporary-cfr-decompiler
-          path: |
-            work/cfr-0.152.jar
-            work/cfr.sha256
+          name: legacy-minecraft-mappings
+          path: work/*.tiny
           retention-days: 1
