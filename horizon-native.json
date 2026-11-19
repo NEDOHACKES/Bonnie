@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "id": "bonfie",
+  "version": "26.3.0-port.2",
+  "game": "26.3",
+  "horizon": "baf0f96a7525841e01f28bbb7aea58d829dff11d",
+  "mixins": "e59da9094f0c2fdda6c627fe9eff22dec6a906f0"
+}
