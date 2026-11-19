@@ -1,0 +1,13 @@
+[mod]
+id = "bonfie"
+version = "26.3.0-port.1"
+priority = 100
+
+[compatibility]
+# Pin to the exact Horizon revision used by the launcher.
+
+[[module]]
+id = "runtime"
+file = "crates/horizon-client/src/game.rs"
+name = "bonfie"
+source = "runtime.rs"
