@@ -1,0 +1,90 @@
+name: Reverse engineer legacy Bonfie (temporary)
+
+on:
+  push:
+    branches:
+      - recovery/decompile-26.3
+
+permissions:
+  contents: read
+
+jobs:
+  decompile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout archived repository snapshot
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Inspect and extract legacy archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/payload work/output
+          ARCHIVE="$(find . -maxdepth 2 -type f -name '*.zip' -not -path './.git/*' | head -n 1)"
+          if [ -z "$ARCHIVE" ]; then
+            echo "No archived ZIP found in this historical commit"
+            exit 1
+          fi
+          echo "Archive: $ARCHIVE"
+          unzip -l "$ARCHIVE" > work/archive-list.txt
+          unzip -q "$ARCHIVE" -d work/payload
+
+          INPUT_JAR="$(find work/payload -type f -name '*.jar' | head -n 1 || true)"
+          if [ -z "$INPUT_JAR" ]; then
+            META="$(find work/payload -type f -name fabric.mod.json | head -n 1 || true)"
+            if [ -n "$META" ]; then
+              ROOT="$(dirname "$META")"
+            else
+              CLASS="$(find work/payload -type f -path '*/ru/bonfiemod/BonfieMod.class' | head -n 1 || true)"
+              if [ -z "$CLASS" ]; then
+                echo "Archive does not contain a Fabric JAR, fabric.mod.json, or Bonfie class files."
+                find work/payload -maxdepth 5 -type f | sort | head -n 200
+                exit 2
+              fi
+              ROOT="${CLASS%/ru/bonfiemod/BonfieMod.class}"
+            fi
+            (cd "$ROOT" && jar --create --file "$GITHUB_WORKSPACE/work/recovered-original.jar" .)
+            INPUT_JAR="$GITHUB_WORKSPACE/work/recovered-original.jar"
+          fi
+
+          echo "Recovered input: $INPUT_JAR"
+          jar tf "$INPUT_JAR" > work/jar-list.txt
+          grep -E 'ru/bonfiemod/.*\.class$|fabric\.mod\.json|LICENSE' work/jar-list.txt | head -n 300 > work/source-inventory.txt || true
+
+      - name: Download CFR decompiler
+        run: curl --fail --location --retry 3 --output work/cfr.jar https://github.com/leibnitz27/cfr/releases/download/0.152/cfr-0.152.jar
+
+      - name: Decompile legacy bytecode
+        shell: bash
+        run: |
+          set -euo pipefail
+          INPUT_JAR="$(find work/payload -type f -name '*.jar' | head -n 1 || true)"
+          if [ -z "$INPUT_JAR" ]; then INPUT_JAR="$GITHUB_WORKSPACE/work/recovered-original.jar"; fi
+          mkdir -p work/decompiled
+          java -jar work/cfr.jar "$INPUT_JAR" --outputdir work/decompiled --silent true
+          find work/decompiled -type f -name '*.java' | sort > work/decompiled-java-files.txt
+          echo "Decompiled Java files: $(wc -l < work/decompiled-java-files.txt)"
+          if [ ! -s work/decompiled-java-files.txt ]; then
+            echo "CFR produced no Java sources"
+            exit 3
+          fi
+          (cd work/decompiled && zip -qr ../decompiled-src.zip .)
+
+      - name: Upload reconstructed sources and audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: bonfie-legacy-decompiled
+          path: |
+            work/decompiled-src.zip
+            work/archive-list.txt
+            work/jar-list.txt
+            work/source-inventory.txt
+            work/decompiled-java-files.txt
+          if-no-files-found: error
+          retention-days: 7
