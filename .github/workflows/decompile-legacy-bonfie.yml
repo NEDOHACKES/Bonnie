@@ -1,4 +1,4 @@
-name: Fetch legacy Fabric mappings for source recovery
+name: Fetch official Minecraft mappings for legacy recovery
 
 on:
   push:
@@ -12,22 +12,24 @@ jobs:
   mappings:
     runs-on: ubuntu-latest
     steps:
-      - name: Download Yarn and intermediary mappings
+      - name: Download official 1.20.1 mappings
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p work
-          curl --fail --location --retry 3 --output work/yarn-1.20.1+build.10-v2.jar 'https://maven.fabricmc.net/net/fabricmc/yarn/1.20.1+build.10/yarn-1.20.1+build.10-v2.jar'
-          curl --fail --location --retry 3 --output work/intermediary-1.20.1.jar 'https://maven.fabricmc.net/net/fabricmc/intermediary/1.20.1/intermediary-1.20.1-v2.jar'
-          unzip -p work/yarn-1.20.1+build.10-v2.jar mappings/mappings.tiny > work/yarn.tiny
-          unzip -p work/intermediary-1.20.1.jar mappings/mappings.tiny > work/intermediary.tiny
-          head -n 3 work/yarn.tiny
-          head -n 3 work/intermediary.tiny
-          wc -l work/*.tiny
+          curl --fail --location --retry 3 -o work/version_manifest.json https://piston-meta.mojang.com/mc/game/version_manifest_v2.json
+          VERSION_URL="$(python3 -c 'import json; d=json.load(open("work/version_manifest.json")); print(next(v["url"] for v in d["versions"] if v["id"]=="1.20.1"))')"
+          curl --fail --location --retry 3 -o work/version.json "$VERSION_URL"
+          MAPPINGS_URL="$(python3 -c 'import json; print(json.load(open("work/version.json"))["downloads"]["client_mappings"]["url"])')"
+          curl --fail --location --retry 3 -o work/client-mappings-1.20.1.txt "$MAPPINGS_URL"
+          sha256sum work/client-mappings-1.20.1.txt | tee work/client-mappings.sha256
+          head -n 10 work/client-mappings-1.20.1.txt
 
-      - name: Upload mappings
+      - name: Upload official mappings
         uses: actions/upload-artifact@v4
         with:
-          name: legacy-minecraft-mappings
-          path: work/*.tiny
+          name: official-minecraft-1.20.1-mappings
+          path: |
+            work/client-mappings-1.20.1.txt
+            work/client-mappings.sha256
           retention-days: 1
