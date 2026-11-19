@@ -1,0 +1,13 @@
+[mod]
+id = "bonfie"
+version = "26.3.0-port.2"
+priority = 100
+
+[compatibility]
+horizon_revision = "baf0f96a7525841e01f28bbb7aea58d829dff11d"
+
+[[module]]
+id = "runtime"
+file = "crates/horizon-client/src/game.rs"
+name = "bonfie"
+source = "runtime.rs"
